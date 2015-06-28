@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="content-type" content="application/xhtml+xml; charset=utf-8"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/0.13.3/react.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/0.13.3/JSXTransformer.js"></script>
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" rel="stylesheet" type="text/css"/>
+    <style>
+      body { margin: 20px; }
+      textarea {font-family:monospace;}
+    </style>
+  </head>
+  <body>
+    <div id='editor'/>
+    <script type="text/jsx">
+      var SCALE = 0.2; // cm per screen pixel
+
+      var LAYOUTS = [
+        ['2× 27" screens horizontal', {
+          video: { x: 0, y: 0, width: 59.77*2+1, height: 33.62 },
+          screens: [{
+            x:       0, y:     0, rotation: 0, inches: 27, width: 1920, height: 1080
+          }, {
+            x: 59.77+1, y:     0, rotation: 0, inches: 27, width: 1920, height: 1080
+          }]
+        }],
+        ['4× 27" screens', {
+          video: { x: 0, y: 0, width: 59.77*2+1, height: 33.62*2+1 },
+          screens: [{
+            x:       0, y:       0, rotation: 0, inches: 27, width: 1920, height: 1080
+          }, {
+            x: 59.77+1, y:       0, rotation: 0, inches: 27, width: 1920, height: 1080
+          }, {
+            x:       0, y: 33.62+1, rotation: 0, inches: 27, width: 1920, height: 1080
+          }, {
+            x: 59.77+1, y: 33.62+1, rotation: 0, inches: 27, width: 1920, height: 1080
+          }]
+        }],
+      ]
+
+      var Video = React.createClass({
+        render: function() {
+          var transform = "translate(" + this.props.x / SCALE + "," + this.props.y / SCALE + ")";
+          return (
+            <g transform={transform}>
+              <rect width={this.props.width / SCALE} height={this.props.height / SCALE}
+                    fill="black"/>
+              <text x="5" y="20" fill="white">Video Area (edit in the JSON below)</text>
+            </g>
+          );
+        }
+      });
+
+      var Screen = React.createClass({
+        getInitialState: function() {
+          return {
+            dragging: false,
+            dragPos: {
+              x: 0,
+              y: 0,
+            },
+          }
+        },
+
+        handleDragStart: function(event) {
+          this.setState({
+            dragPos: {x: event.clientX, y: event.clientY},
+            dragging: true,
+          });
+        },
+
+        handleWheel: function(event) {
+          var delta = event.deltaY < 0 ? -1 : 1;
+          this.props.handleScreenRotate(this.props.screenId, delta * 2);
+          event.preventDefault();
+        },
+
+        handleDragMove: function(event) {
+          if (!this.state.dragging)
+            return;
+          var deltaX = (event.clientX - this.state.dragPos.x) * SCALE;
+          var deltaY = (event.clientY - this.state.dragPos.y) * SCALE;
+          this.props.handleScreenMove(this.props.screenId, deltaX, deltaY);
+          this.setState({
+            dragPos: {x: event.clientX, y: event.clientY},
+          });
+        },
+
+        handleDragEnd: function(event) {
+          this.setState({
+            dragging: false,
+          });
+        },
+
+        render: function() {
+          var screen = this.props.screen;
+          var diagonal_pixels = Math.sqrt(Math.pow(screen.width, 2) + Math.pow(screen.height, 2));
+          var cm_per_pixel = (screen.inches * 2.54) / diagonal_pixels;
+
+          var x = screen.x / SCALE;
+          var y = screen.y / SCALE;
+          var width = cm_per_pixel * screen.width / SCALE;
+          var height = cm_per_pixel * screen.height / SCALE;
+
+          var color = this.state.dragging ? "white": "green";
+          var transform = "rotate(" + screen.rotation + "," + x + "," + y + ") " +
+                          "translate(" + x + "," + y + ")";
+
+          var screenName = "Screen " + this.props.screenId;
+          var screenInfo = screen.inches + '" (' + screen.width + "×" + screen.height + ")";
+          var screenStyle = {
+            cursor: "move",
+          }
+          return (
+            <g transform={transform} style={screenStyle}>
+              <rect width={width} height={height}
+                    fill={color}
+                    fillOpacity="0.8"
+                    onWheel={this.handleWheel}
+                    onMouseDown={this.handleDragStart}
+                    onMouseMove={this.handleDragMove}
+                    onMouseUp={this.handleDragEnd}
+                    onMouseOut={this.handleDragEnd}/>
+              <rect width="5" height="5" fill="white"/>
+              <text x="5" y="20" fill="white">{screenName}</text>
+              <text x="5" y="40" fill="white">{screenInfo}</text>
+            </g>
+          );
+        }
+      });
+
+      var Editor = React.createClass({
+        getInitialState: function() {
+          var currentLayout = 0;
+          return {
+            currentLayout: currentLayout,
+            video: this.props.layouts[currentLayout][1].video,
+            screens: this.props.layouts[currentLayout][1].screens,
+          }
+        },
+
+        handleLoad: function(event) {
+          var stateJson = JSON.parse(event.target.value);
+          this.setState({
+            screens: stateJson.screens,
+            video: stateJson.video,
+          });
+        },
+
+        handleScreenMove: function(screenId, deltaX, deltaY) {
+          var screens = this.state.screens.slice();
+          screens[screenId].x += deltaX;
+          screens[screenId].y += deltaY;
+          this.setState({
+            screens: screens,
+          });
+        },
+
+        handleScreenRotate: function(screenId, delta) {
+          var screens = this.state.screens.slice();
+          screens[screenId].rotation += delta;
+          this.setState({
+            screens: screens,
+          });
+        },
+
+        handleDownload: function() {
+          var pom = document.createElement('a');
+          var stateJson = JSON.stringify({
+            screens: this.state.screens,
+            video: this.state.video,
+          }, null, 2);
+          pom.setAttribute('href', 'data:text/json;charset=utf-8,' + encodeURIComponent(stateJson));
+          pom.setAttribute('download', 'screens.json');
+          pom.style.display = 'none';
+          document.body.appendChild(pom);
+          pom.click();
+          document.body.removeChild(pom);
+        },
+
+        ignoreWheel: function(event) {
+          event.preventDefault();
+        },
+
+        handleSelect: function(event) {
+          var currentLayout = event.target.value;
+          this.setState({
+            currentLayout: currentLayout,
+            video: this.props.layouts[currentLayout][1].video,
+            screens: this.props.layouts[currentLayout][1].screens,
+          });
+        },
+
+        render: function() {
+          var self = this;
+          var stateJson = JSON.stringify({
+            screens: this.state.screens,
+            video: this.state.video,
+          }, null, 2);
+          var svgStyle = {
+            backgroundColor: "gray",
+          };
+          var numLines = (stateJson.match(/\n/g) || []).length + 1;
+
+          return (
+            <div>
+              <h1>info-beamer multi screen video configuration tool</h1>
+              <svg id="plane" width="1000" height="700" style={svgStyle}
+                   onWheel={this.ignoreWheel}>
+                <Video width={this.state.video.width} height={this.state.video.height}
+                       x={this.state.video.x} y={this.state.video.y}/> 
+                {this.state.screens.map(function(screen, screenId) {
+                  return (
+                    <Screen key={screenId} screenId={screenId} 
+                            screen={screen} 
+                            handleScreenRotate={self.handleScreenRotate}
+                            handleScreenMove={self.handleScreenMove}/>
+                  )
+                })}
+              </svg>
+              <br/>
+              <h2>Howto:</h2>
+              <ul>
+                <li>(optional) paste an existing configuration in the text box below.</li>
+                <li>Edit using either the JSON below or the graphical representation above. Use the scroll wheel to rotate
+                    screens and drag/drop to move them.</li>
+                <li>To add new screens paste a new screen object into the JSON below.</li>
+                <li>Save (using the button) or just copy/paste the JSON below into a file <em>screens.json</em></li>
+                <li>Read the README to learn what to do next :-)</li>
+              </ul>
+              <form className="form-inline">
+                <textarea cols="100" rows={numLines} value={stateJson} onChange={this.handleLoad}/>
+                <br/>
+                <button className="btn" onClick={this.handleDownload}>
+                  <span className="glyphicon glyphicon-download-alt" aria-hidden="true"></span>
+                  &nbsp;
+                  Download current configuration
+                </button>
+                &nbsp;
+                or select a layout template:
+                &nbsp;
+                <select className="form-control" onChange={this.handleSelect} value={this.state.currentLayout}>
+                  {this.props.layouts.map(function(layout, layoutIndex) {
+                    return (
+                      <option value={layoutIndex}>{layout[0]}</option>
+                    )
+                  })}
+                </select>
+              </form>
+            </div>
+          );
+        }
+      });
+
+      React.render(
+        <Editor layouts={LAYOUTS}/>,
+        document.getElementById('editor')
+      );
+    </script>
+  </body>
+</html>
