@@ -31,6 +31,8 @@ with a browser.
 Using the configuration tool
 ----------------------------
 
+(Use it here: https://info-beamer.github.io/multiscreen/)
+
 In the upper area you see the current setup. The dark area
 represents the virtual video area. The are multiple screens
 that cover this area.
