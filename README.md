@@ -3,7 +3,7 @@ info-beamer multiscreen video player
 
 This example code shows a way to play a single video on multiple
 screens. Each of them has to have its own Raspberry PI running
-info-beamer to display parse of the video.
+info-beamer to display part of the video.
 
 
 Setting up the screens
